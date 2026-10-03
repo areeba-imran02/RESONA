@@ -1,54 +1,42 @@
 """
-RESONA - Memory View
+RESONA - Memory Intelligence UI
 
-Displays active short-term workflow memory and selected
-long-term emergency-response memory.
+Displays RESONA's short-term workflow memory and
+long-term SQLite memory.
 """
-
-from typing import Any, Dict
 
 import streamlit as st
 
-from memory.database import ResonaDatabase
-from memory.long_term import LongTermMemory
 from memory.short_term import ShortTermMemory
+from memory.long_term import LongTermMemory
+from memory.database import ResonaDatabase
 
 
-def render_memory_view() -> None:
-    """
-    Render RESONA memory information.
-    """
+def render_memory_view():
 
     st.markdown(
         """
-        <div class="section-label">
-            CONTEXT & MEMORY
+        <div class="page-header">
+            <div class="page-eyebrow">
+                CONTEXT & MEMORY
+            </div>
+            <h1>Memory</h1>
+            <p>
+                RESONA maintains current workflow context
+                and persistent emergency-response knowledge.
+            </p>
         </div>
-
-        <h1 style="margin-top:0;">
-            Memory
-        </h1>
-
-        <p style="color:#94a3b8;">
-            RESONA maintains active workflow context and persistent
-            operational history to support continuity across
-            emergency-response sessions.
-        </p>
         """,
         unsafe_allow_html=True,
     )
 
     short_term = ShortTermMemory()
 
-    try:
-        long_term = LongTermMemory(
-            database=ResonaDatabase()
-        )
-    except Exception as exc:
-        long_term = None
-        st.warning(
-            f"Long-term memory unavailable: {exc}"
-        )
+    database = ResonaDatabase()
+
+    long_term = LongTermMemory(
+        database=database
+    )
 
     tab1, tab2 = st.tabs(
         [
@@ -57,25 +45,35 @@ def render_memory_view() -> None:
         ]
     )
 
+    # ========================================================
+    # SHORT TERM
+    # ========================================================
+
     with tab1:
 
         st.markdown(
-            "### Current Workflow State"
+            "### Current Workflow Context"
         )
 
         snapshot = short_term.snapshot()
 
         if not snapshot:
+
             st.info(
                 "No active short-term memory is available."
             )
+
         else:
+
             status = snapshot.get(
-                "workflow_status",
-                "unknown",
+                "status",
+                snapshot.get(
+                    "workflow_status",
+                    "unknown",
+                ),
             )
 
-            revision = snapshot.get(
+            revision_count = snapshot.get(
                 "revision_count",
                 0,
             )
@@ -85,154 +83,167 @@ def render_memory_view() -> None:
             with col1:
                 st.metric(
                     "Workflow Status",
-                    status,
+                    str(status).title(),
                 )
 
             with col2:
                 st.metric(
                     "Revisions",
-                    revision,
+                    revision_count,
                 )
 
-            contexts = snapshot.get(
+            st.markdown(
+                "#### Stored Context"
+            )
+
+            context = snapshot.get(
                 "context",
                 {},
             )
 
-            if contexts:
-                st.markdown(
-                    "### Active Context"
-                )
-                st.json(
-                    contexts
+            if context:
+
+                for key, value in context.items():
+
+                    with st.expander(
+                        str(key).replace(
+                            "_",
+                            " "
+                        ).title()
+                    ):
+                        st.write(value)
+
+            else:
+
+                st.caption(
+                    "No contextual data stored."
                 )
 
-            conflicts = snapshot.get(
-                "conflicts",
-                [],
+            st.markdown(
+                "#### Agent Outputs"
             )
 
-            if conflicts:
-                st.markdown(
-                    "### Active Conflicts"
-                )
-
-                for conflict in conflicts:
-                    st.warning(
-                        str(conflict)
-                    )
-
-            decisions = snapshot.get(
-                "decisions",
-                [],
+            outputs = snapshot.get(
+                "agent_outputs",
+                {},
             )
 
-            if decisions:
-                st.markdown(
-                    "### Decisions"
+            if outputs:
+
+                for agent_name, output in outputs.items():
+
+                    with st.expander(
+                        agent_name
+                    ):
+                        st.write(output)
+
+            else:
+
+                st.caption(
+                    "No agent outputs stored."
                 )
 
-                for decision in decisions:
-                    st.markdown(
-                        f"- {decision}"
-                    )
+    # ========================================================
+    # LONG TERM
+    # ========================================================
 
     with tab2:
 
-        if long_term is None:
-            st.info(
-                "Long-term memory is not available."
-            )
-            return
-
         st.markdown(
-            "### Stored Emergency History"
+            "### Persistent Response Memory"
         )
 
         try:
-            emergencies = (
-                long_term.get_emergency_history(
-                    limit=10
-                )
-            )
-        except Exception as exc:
-            emergencies = []
-            st.warning(
-                f"Could not load emergency history: {exc}"
-            )
 
-        if not emergencies:
-            st.info(
-                "No previous emergency records are available."
-            )
-        else:
+            summary = long_term.summary()
 
-            for emergency in emergencies:
+            if isinstance(summary, dict):
 
-                emergency_id = emergency.get(
-                    "emergency_id",
-                    "Unknown",
-                )
+                col1, col2, col3 = st.columns(3)
 
-                emergency_type = emergency.get(
-                    "emergency_type",
-                    "Unknown",
-                )
-
-                location = emergency.get(
-                    "location",
-                    "Unknown",
-                )
-
-                status = emergency.get(
-                    "status",
-                    "Unknown",
-                )
-
-                with st.expander(
-                    f"{emergency_id} — {emergency_type}"
-                ):
-                    st.write(
-                        "**Location:**",
-                        location,
-                    )
-
-                    st.write(
-                        "**Status:**",
-                        status,
-                    )
-
-                    st.write(
-                        "**Created:**",
-                        emergency.get(
-                            "created_at",
-                            "Unknown",
+                with col1:
+                    st.metric(
+                        "Emergencies",
+                        summary.get(
+                            "emergencies",
+                            0,
                         ),
                     )
 
+                with col2:
+                    st.metric(
+                        "Identities",
+                        summary.get(
+                            "identities",
+                            0,
+                        ),
+                    )
+
+                with col3:
+                    st.metric(
+                        "Memory Records",
+                        summary.get(
+                            "memory_records",
+                            0,
+                        ),
+                    )
+
+            else:
+
+                st.info(
+                    "Long-term memory is available."
+                )
+
+        except Exception as exc:
+
+            st.warning(
+                f"Memory summary could not be loaded: {exc}"
+            )
+
+        st.markdown("---")
+
         st.markdown(
-            "### Memory Architecture"
+            "### Previous Emergencies"
         )
 
-        st.markdown(
-            """
-            <div class="info-panel">
+        try:
 
-                <p>
-                    <strong>Short-Term Memory</strong><br>
-                    Current emergency context, agent outputs,
-                    conflicts, revisions, decisions, and workflow
-                    events.
-                </p>
+            history = (
+                long_term.get_emergency_history()
+            )
 
-                <p>
-                    <strong>Long-Term Memory</strong><br>
-                    Previous emergency records, response plans,
-                    identities, organizations, volunteers,
-                    resources, and historical workflow information.
-                </p>
+            if history:
 
-            </div>
-            """,
-            unsafe_allow_html=True,
+                for emergency in history:
+
+                    emergency_id = emergency.get(
+                        "emergency_id",
+                        "Unknown",
+                    )
+
+                    with st.expander(
+                        str(emergency_id)
+                    ):
+
+                        st.write(
+                            emergency
+                        )
+
+            else:
+
+                st.caption(
+                    "No previous emergencies stored yet."
+                )
+
+        except Exception as exc:
+
+            st.warning(
+                f"Emergency history could not be loaded: {exc}"
+            )
+
+        st.markdown("---")
+
+        st.caption(
+            "Long-term memory is stored locally in "
+            "RESONA's SQLite database."
         )
