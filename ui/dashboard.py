@@ -1,237 +1,434 @@
 """
-RESONA - Dashboard
-
-Main operational dashboard for emergency response monitoring.
+RESONA - Dashboard UI
 """
-
-from typing import Any, Dict, List
 
 import streamlit as st
 
 
 AGENT_NAMES = [
-    "Situation Intelligence",
-    "Needs Assessment",
-    "Resource Intelligence",
-    "Logistics & Deployment",
-    "Priority & Impact",
-    "Critic & Conflict Resolution",
-    "Response Coordinator",
+    "Situation Intelligence Agent",
+    "Needs Assessment Agent",
+    "Resource Intelligence Agent",
+    "Logistics & Deployment Agent",
+    "Priority & Impact Agent",
+    "Critic & Conflict Resolution Agent",
+    "Response Coordinator Agent",
 ]
 
 
-def _metric_card(
-    label: str,
-    value: Any,
-) -> str:
-    return f"""
-        <div class="metric-card">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-        </div>
-    """
+def _get_state(workflow_result):
+    if not workflow_result:
+        return None
+    return workflow_result.get("state")
 
 
-def render_dashboard(
-    workflow_result: Dict[str, Any] | None = None,
-) -> None:
-    """
-    Render the main RESONA operational dashboard.
-    """
+def _get_history(workflow_result):
+    state = _get_state(workflow_result)
 
+    if not state:
+        return []
+
+    return getattr(state, "agent_history", []) or []
+
+
+def _get_status(history, agent_name):
+    matches = [
+        item
+        for item in history
+        if getattr(item, "agent_name", "") == agent_name
+    ]
+
+    if not matches:
+        return "Pending"
+
+    return getattr(
+        matches[-1],
+        "status",
+        "Pending",
+    ).title()
+
+
+def _render_metric_card(title, value, subtitle):
     st.markdown(
-        """
-        <div class="section-label">
-            RESONA COMMAND CENTER
+        f"""
+        <div class="metric-card">
+            <div class="metric-title">{title}</div>
+            <div class="metric-value">{value}</div>
+            <div class="metric-subtitle">{subtitle}</div>
         </div>
-        <h1 style="
-            margin-top:0;
-            margin-bottom:0.35rem;
-        ">
-            Emergency Response Dashboard
-        </h1>
-        <p style="
-            color:#94a3b8;
-            margin-top:0;
-        ">
-            Monitor emergency intelligence, agent activity,
-            resources, and coordinated response decisions.
-        </p>
         """,
         unsafe_allow_html=True,
     )
 
-    state = {}
 
-    if workflow_result:
-        state = workflow_result.get(
-            "state",
-            {},
-        ) or {}
+def render_dashboard(workflow_result=None):
+    state = _get_state(workflow_result)
 
-    situation = state.get(
-        "situation",
-        {}
-    ) or {}
-
-    affected_population = situation.get(
-        "affected_population",
-        0,
+    st.markdown(
+        """
+        <div class="page-header">
+            <div class="page-eyebrow">
+                RESONA COMMAND CENTER
+            </div>
+            <h1>Emergency Response Dashboard</h1>
+            <p>
+                A unified view of emergency intelligence,
+                multi-agent analysis and coordinated response.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    affected_areas = situation.get(
-        "affected_areas",
-        [],
-    ) or []
+    # --------------------------------------------------------
+    # No analysis yet
+    # --------------------------------------------------------
 
-    resources = state.get(
-        "resources",
-        {}
-    ) or {}
+    if not state:
 
-    available_resources = resources.get(
-        "available_resources",
-        [],
-    ) or []
+        cols = st.columns(4)
 
-    critic = state.get(
-        "critic",
-        {}
-    ) or {}
-
-    conflicts = critic.get(
-        "conflicts_detected",
-        [],
-    ) or []
-
-    columns = st.columns(5)
-
-    metrics = [
-        (
-            "Emergency Status",
-            "ACTIVE" if workflow_result else "READY",
-        ),
-        (
-            "Affected Population",
-            f"{affected_population:,}",
-        ),
-        (
-            "Affected Areas",
-            len(affected_areas),
-        ),
-        (
-            "Resources",
-            len(available_resources),
-        ),
-        (
-            "Conflicts",
-            len(conflicts),
-        ),
-    ]
-
-    for column, (label, value) in zip(
-        columns,
-        metrics,
-    ):
-        with column:
-            st.markdown(
-                _metric_card(
-                    label,
-                    value,
-                ),
-                unsafe_allow_html=True,
+        with cols[0]:
+            _render_metric_card(
+                "AGENTS",
+                "07",
+                "Specialized AI agents",
             )
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    left, right = st.columns(
-        [1.55, 1],
-        gap="large",
-    )
-
-    with left:
-        st.markdown(
-            '<div class="section-label">Agent Network</div>',
-            unsafe_allow_html=True,
-        )
-
-        for index, agent in enumerate(
-            AGENT_NAMES
-        ):
-            if workflow_result:
-                status = "Completed"
-                dot = "status-dot"
-            else:
-                status = "Standby"
-                dot = ""
-
-            st.markdown(
-                f"""
-                <div class="agent-card">
-                    <span class="{dot}"></span>
-                    <span class="agent-name">
-                        {index + 1:02d} &nbsp; {agent}
-                    </span>
-                    <div class="agent-status">
-                        {status}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+        with cols[1]:
+            _render_metric_card(
+                "MEMORY",
+                "2-LAYER",
+                "Short + long term",
             )
 
-    with right:
-        st.markdown(
-            '<div class="section-label">System Overview</div>',
-            unsafe_allow_html=True,
-        )
+        with cols[2]:
+            _render_metric_card(
+                "REVIEW",
+                "ACTIVE",
+                "Conflict detection",
+            )
+
+        with cols[3]:
+            _render_metric_card(
+                "STATUS",
+                "READY",
+                "System initialized",
+            )
+
+        st.markdown("---")
 
         st.markdown(
             """
-            <div class="info-panel">
-                <h3 style="margin-top:0;">
-                    How RESONA Works
-                </h3>
-
-                <p style="color:#94a3b8;line-height:1.7;">
-                    Emergency information enters the system and
-                    is distributed through specialized agents.
-                    Their findings are reviewed for conflicts
-                    before the coordinator creates the final
-                    response plan.
+            <div class="dashboard-empty">
+                <div class="dashboard-empty-icon">◈</div>
+                <h2>No active emergency analysis</h2>
+                <p>
+                    Create an emergency scenario to activate
+                    the RESONA multi-agent response system.
                 </p>
-
-                <div class="workflow-line">
-                    <p>
-                        <strong>Situation</strong>
-                        → <strong>Needs</strong>
-                        → <strong>Resources</strong>
-                    </p>
-
-                    <p>
-                        <strong>Logistics</strong>
-                        → <strong>Priority</strong>
-                        → <strong>Critic</strong>
-                    </p>
-
-                    <p>
-                        <strong>Re-evaluation</strong>
-                        → <strong>Coordinator</strong>
-                    </p>
-                </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
         if st.button(
-            "＋  Create Emergency",
+            "＋ Create Emergency",
             type="primary",
             use_container_width=True,
         ):
-            st.session_state[
-                "active_page"
-            ] = "New Emergency"
+            st.session_state["active_page"] = (
+                "Create Emergency"
+            )
+            st.rerun()
+
+        return
+
+    # --------------------------------------------------------
+    # Active analysis
+    # --------------------------------------------------------
+
+    situation = getattr(
+        state,
+        "situation",
+        None,
+    )
+
+    critic = getattr(
+        state,
+        "critic",
+        None,
+    )
+
+    final_response = getattr(
+        state,
+        "final_response",
+        None,
+    )
+
+    history = _get_history(
+        workflow_result
+    )
+
+    population = (
+        getattr(
+            situation,
+            "affected_population",
+            0,
+        )
+        if situation
+        else 0
+    )
+
+    priority_count = (
+        len(
+            getattr(
+                final_response,
+                "priority_areas",
+                [],
+            )
+        )
+        if final_response
+        else 0
+    )
+
+    conflict_count = (
+        len(
+            getattr(
+                critic,
+                "conflicts_detected",
+                [],
+            )
+        )
+        if critic
+        else 0
+    )
+
+    revision_count = getattr(
+        state,
+        "revision_count",
+        0,
+    )
+
+    cols = st.columns(4)
+
+    with cols[0]:
+        _render_metric_card(
+            "AFFECTED",
+            f"{population:,}",
+            "People identified",
+        )
+
+    with cols[1]:
+        _render_metric_card(
+            "PRIORITIES",
+            str(priority_count),
+            "Response priority areas",
+        )
+
+    with cols[2]:
+        _render_metric_card(
+            "CONFLICTS",
+            str(conflict_count),
+            "Detected by critic",
+        )
+
+    with cols[3]:
+        _render_metric_card(
+            "REVISIONS",
+            str(revision_count),
+            "Agent re-evaluations",
+        )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # Emergency overview
+    # --------------------------------------------------------
+
+    st.markdown(
+        "### Emergency Intelligence"
+    )
+
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+
+        st.markdown(
+            """
+            <div class="dashboard-panel">
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("#### Situation")
+
+        if situation:
+
+            st.write(
+                f"**Emergency:** "
+                f"{situation.emergency_type}"
+            )
+
+            st.write(
+                f"**Location:** "
+                f"{situation.location}"
+            )
+
+            st.write(
+                f"**Severity:** "
+                f"{situation.overall_severity.title()}"
+            )
+
+            st.write(
+                f"**Affected population:** "
+                f"{situation.affected_population:,}"
+            )
+
+        else:
+            st.info(
+                "Situation assessment unavailable."
+            )
+
+        st.markdown(
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    with col2:
+
+        st.markdown(
+            """
+            <div class="dashboard-panel">
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("#### Workflow")
+
+        status = getattr(
+            state,
+            "workflow_status",
+            "unknown",
+        )
+
+        st.write(
+            f"**System status:** "
+            f"{status.title()}"
+        )
+
+        st.write(
+            f"**Agents executed:** "
+            f"{len(history)}"
+        )
+
+        st.write(
+            f"**Workflow revisions:** "
+            f"{revision_count}"
+        )
+
+        st.write(
+            "**Architecture:** "
+            "Sequential analysis + critic review + coordination"
+        )
+
+        st.markdown(
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # Agent status
+    # --------------------------------------------------------
+
+    st.markdown(
+        "### Agent Network Status"
+    )
+
+    for index, agent_name in enumerate(
+        AGENT_NAMES,
+        start=1,
+    ):
+
+        status = _get_status(
+            history,
+            agent_name,
+        )
+
+        if status.lower() in {
+            "completed",
+            "reviewed",
+            "revised",
+        }:
+            icon = "✓"
+        elif status.lower() == "failed":
+            icon = "×"
+        else:
+            icon = "○"
+
+        col1, col2, col3 = st.columns(
+            [0.5, 5, 2]
+        )
+
+        with col1:
+            st.markdown(
+                f"**{index:02d}**"
+            )
+
+        with col2:
+            st.markdown(
+                f"**{agent_name}**"
+            )
+
+        with col3:
+            st.markdown(
+                f"`{icon} {status}`"
+            )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # Final response preview
+    # --------------------------------------------------------
+
+    if final_response:
+
+        st.markdown(
+            "### Coordinated Response"
+        )
+
+        st.success(
+            getattr(
+                final_response,
+                "emergency_summary",
+                "Final response generated.",
+            )
+        )
+
+        immediate_actions = getattr(
+            final_response,
+            "immediate_actions",
+            [],
+        )
+
+        if immediate_actions:
+
+            st.markdown(
+                "#### Immediate Actions"
+            )
+
+            for action in immediate_actions[:5]:
+                st.markdown(
+                    f"• {action}"
+                )
+
+        if st.button(
+            "◎ Open Agent Workflow",
+            use_container_width=True,
+        ):
+            st.session_state["active_page"] = (
+                "Agent Workflow"
+            )
             st.rerun()
