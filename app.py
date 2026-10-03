@@ -1,4 +1,4 @@
-```python
+
 """
 RESONA
 AI-Powered Emergency Response Intelligence Platform
@@ -474,4 +474,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
+
