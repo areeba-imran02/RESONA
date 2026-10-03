@@ -1,255 +1,302 @@
 """
-RESONA - Resources View
-
-Displays available emergency resources, constraints,
-shortages, and resource intelligence from the workflow.
+RESONA - Resource Intelligence UI
 """
 
-from typing import Any, Dict, List
-
-import pandas as pd
 import streamlit as st
+import pandas as pd
 
 
-def _get_state() -> Dict[str, Any]:
-    """
-    Return the current workflow state.
-    """
+def _get_state(workflow_result):
+    if not workflow_result:
+        return None
 
-    result = st.session_state.get(
-        "workflow_result",
-        {},
-    )
-
-    return result.get(
-        "state",
-        {},
-    ) or {}
+    return workflow_result.get("state")
 
 
-def render_resources() -> None:
-    """
-    Render the resource intelligence interface.
-    """
+def render_resources(workflow_result=None):
 
     st.markdown(
         """
-        <div class="section-label">
-            RESOURCE INTELLIGENCE
+        <div class="page-header">
+            <div class="page-eyebrow">
+                RESOURCE INTELLIGENCE
+            </div>
+            <h1>Resources</h1>
+            <p>
+                Monitor available resources, shortages,
+                constraints and allocation intelligence.
+            </p>
         </div>
-
-        <h1 style="margin-top:0;">
-            Resources
-        </h1>
-
-        <p style="color:#94a3b8;">
-            Monitor available resources, identified gaps,
-            constrained supplies, and allocation information.
-        </p>
         """,
         unsafe_allow_html=True,
     )
 
-    state = _get_state()
+    state = _get_state(workflow_result)
 
-    resources = state.get(
+    if not state:
+
+        st.info(
+            "Run an emergency analysis to populate "
+            "resource intelligence."
+        )
+
+        return
+
+    resources = getattr(
+        state,
         "resources",
-        {},
-    ) or {}
+        None,
+    )
 
-    available = resources.get(
+    if not resources:
+
+        st.info(
+            "Resource assessment is not available."
+        )
+
+        return
+
+    available = getattr(
+        resources,
         "available_resources",
         [],
-    ) or []
+    )
 
-    gaps = resources.get(
+    gaps = getattr(
+        resources,
         "resource_gaps",
         [],
-    ) or []
+    )
 
-    constrained = resources.get(
+    constrained = getattr(
+        resources,
         "constrained_resources",
         [],
-    ) or []
+    )
 
-    surplus = resources.get(
+    surplus = getattr(
+        resources,
         "surplus_resources",
         [],
-    ) or []
+    )
 
-    columns = st.columns(4)
+    col1, col2, col3, col4 = st.columns(4)
 
-    metrics = [
-        (
-            "Available Resources",
+    with col1:
+        st.metric(
+            "Resource Types",
             len(available),
-        ),
-        (
+        )
+
+    with col2:
+        st.metric(
             "Resource Gaps",
             len(gaps),
-        ),
-        (
+        )
+
+    with col3:
+        st.metric(
             "Constrained",
             len(constrained),
-        ),
-        (
+        )
+
+    with col4:
+        st.metric(
             "Surplus",
             len(surplus),
-        ),
-    ]
+        )
 
-    for column, (
-        label,
-        value,
-    ) in zip(
-        columns,
-        metrics,
-    ):
-        with column:
-            st.markdown(
-                f"""
-                <div class="metric-card">
-                    <div class="metric-label">
-                        {label}
-                    </div>
-                    <div class="metric-value">
-                        {value}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    st.markdown("---")
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    # --------------------------------------------------------
+    # Available resources
+    # --------------------------------------------------------
+
+    st.markdown(
+        "### Available Resources"
+    )
 
     if available:
-
-        st.markdown(
-            "### Available Resources"
-        )
 
         rows = []
 
         for resource in available:
+
             rows.append(
                 {
-                    "Resource": resource.get(
+                    "Resource": getattr(
+                        resource,
                         "name",
-                        "Unknown",
+                        "",
                     ),
-                    "Category": resource.get(
+                    "Category": getattr(
+                        resource,
                         "category",
-                        "Unknown",
+                        "",
                     ),
-                    "Quantity": resource.get(
+                    "Quantity": getattr(
+                        resource,
                         "quantity",
                         0,
                     ),
-                    "Unit": resource.get(
+                    "Unit": getattr(
+                        resource,
                         "unit",
                         "",
                     ),
-                    "Location": resource.get(
+                    "Location": getattr(
+                        resource,
                         "location",
                         "",
+                    ),
+                    "Available": (
+                        "Yes"
+                        if getattr(
+                            resource,
+                            "available",
+                            True,
+                        )
+                        else "No"
                     ),
                 }
             )
 
-        dataframe = pd.DataFrame(
-            rows
-        )
+        df = pd.DataFrame(rows)
 
         st.dataframe(
-            dataframe,
+            df,
             use_container_width=True,
             hide_index=True,
         )
 
     else:
+
         st.info(
-            "No structured resource information is available yet."
+            "No available resources were identified."
         )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # Resource gaps
+    # --------------------------------------------------------
+
+    st.markdown(
+        "### Resource Gaps"
+    )
 
     if gaps:
 
-        st.markdown(
-            "### Resource Gaps"
-        )
-
         for gap in gaps:
 
-            resource_name = gap.get(
+            resource_name = getattr(
+                gap,
                 "resource",
                 "Unknown resource",
             )
 
-            explanation = gap.get(
-                "explanation",
-                "",
+            shortage = getattr(
+                gap,
+                "shortage_quantity",
+                None,
             )
 
-            severity = gap.get(
+            area = getattr(
+                gap,
+                "affected_area",
+                None,
+            )
+
+            severity = getattr(
+                gap,
                 "severity",
                 "medium",
             )
 
-            st.markdown(
-                f"""
-                <div class="agent-card">
-                    <div class="agent-name">
-                        {resource_name}
-                    </div>
-
-                    <div class="agent-status">
-                        Severity: {severity}
-                    </div>
-
-                    <p style="
-                        color:#94a3b8;
-                        margin-bottom:0;
-                    ">
-                        {explanation}
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            explanation = getattr(
+                gap,
+                "explanation",
+                "",
             )
 
-    if constrained:
+            location_text = (
+                f" — {area}"
+                if area
+                else ""
+            )
+
+            st.warning(
+                f"**{resource_name}{location_text}**  \n"
+                f"Shortage: `{shortage}`  \n"
+                f"Severity: `{severity}`  \n"
+                f"{explanation}"
+            )
+
+    else:
+
+        st.success(
+            "No explicit resource shortages were identified."
+        )
+
+    st.markdown("---")
+
+    # --------------------------------------------------------
+    # Constraints and surplus
+    # --------------------------------------------------------
+
+    col1, col2 = st.columns(2)
+
+    with col1:
 
         st.markdown(
             "### Constrained Resources"
         )
 
-        for resource in constrained:
-            st.markdown(
-                f"- {resource}"
+        if constrained:
+
+            for item in constrained:
+                st.markdown(
+                    f"• {item}"
+                )
+
+        else:
+
+            st.caption(
+                "No constrained resources reported."
             )
 
-    if surplus:
+    with col2:
 
         st.markdown(
             "### Surplus Resources"
         )
 
-        for resource in surplus:
-            st.markdown(
-                f"- {resource}"
+        if surplus:
+
+            for item in surplus:
+                st.markdown(
+                    f"• {item}"
+                )
+
+        else:
+
+            st.caption(
+                "No surplus resources reported."
             )
 
-    allocation_constraints = resources.get(
+    allocation_constraints = getattr(
+        resources,
         "allocation_constraints",
         [],
-    ) or []
+    )
 
     if allocation_constraints:
+
+        st.markdown("---")
 
         st.markdown(
             "### Allocation Constraints"
         )
 
         for constraint in allocation_constraints:
-            st.warning(
-                constraint
-            )
+            st.warning(constraint)
