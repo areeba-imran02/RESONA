@@ -1,21 +1,33 @@
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(PROJECT_ROOT / "RESONA"))
-
-import streamlit as st
-
-from config.settings import (
-    APP_TITLE,
-    validate_configuration,
-)"""
+```python
+"""
 RESONA
 AI-Powered Emergency Response Intelligence Platform
 
 Main Streamlit application entry point.
 """
+
+import sys
+from pathlib import Path
+
+# ============================================================
+# PROJECT PATHS
+# ============================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+BACKEND_ROOT = PROJECT_ROOT / "RESONA"
+
+# Allow imports from both the repository root and the
+# RESONA backend folder.
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+if BACKEND_ROOT.exists() and str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
+
+# ============================================================
+# IMPORTS
+# ============================================================
 
 import streamlit as st
 
@@ -49,7 +61,7 @@ st.set_page_config(
 
 
 # ============================================================
-# GLOBAL STATE
+# GLOBAL SESSION STATE
 # ============================================================
 
 def initialize_session_state():
@@ -73,76 +85,24 @@ inject_styles()
 
 
 # ============================================================
-# WORKFLOW EXECUTION
-# ============================================================
-
-def execute_pending_workflow():
-    """
-    Execute the real RESONA CrewAI workflow.
-
-    The workflow is only started when the emergency form
-    explicitly requests analysis.
-    """
-
-    emergency = st.session_state.get("pending_emergency")
-
-    if not emergency:
-        return
-
-    st.session_state["workflow_running"] = True
-    st.session_state["last_error"] = None
-
-    try:
-        workflow = ResonaWorkflow()
-
-        emergency_id = emergency.get(
-            "emergency_id",
-            "RES-" + str(abs(hash(str(emergency))))[:10],
-        )
-
-        emergency_context = build_emergency_context(
-            emergency
-        )
-
-        result = workflow.run(
-            emergency_context=emergency_context,
-            emergency_id=emergency_id,
-        )
-
-        st.session_state["workflow_result"] = result
-
-        if result.get("success"):
-            st.session_state["last_error"] = None
-        else:
-            st.session_state["last_error"] = result.get(
-                "error",
-                "RESONA workflow failed.",
-            )
-
-    except Exception as exc:
-        st.session_state["workflow_result"] = {
-            "success": False,
-            "state": None,
-            "final_response": None,
-            "error": str(exc),
-        }
-
-        st.session_state["last_error"] = str(exc)
-
-    finally:
-        st.session_state["workflow_running"] = False
-        st.session_state["run_workflow"] = False
-
-
-# ============================================================
 # EMERGENCY CONTEXT BUILDER
 # ============================================================
 
 def build_emergency_context(emergency: dict) -> str:
     """
-    Convert the emergency form data into a clean context
-    for the multi-agent workflow.
+    Convert emergency form data into structured context
+    for the RESONA multi-agent workflow.
     """
+
+    affected_population = emergency.get(
+        "affected_population",
+        0,
+    )
+
+    try:
+        affected_population = int(affected_population or 0)
+    except (TypeError, ValueError):
+        affected_population = 0
 
     lines = [
         "RESONA EMERGENCY INTAKE",
@@ -152,9 +112,10 @@ def build_emergency_context(emergency: dict) -> str:
         f"Emergency Type: {emergency.get('emergency_type', 'N/A')}",
         f"Severity: {emergency.get('severity', 'N/A')}",
         f"Location: {emergency.get('location', 'N/A')}",
-        f"Affected Population: {emergency.get('affected_population', 0):,}",
+        f"Affected Population: {affected_population:,}",
         "",
         "DESCRIPTION",
+        "-" * 20,
         emergency.get(
             "description",
             "No description provided.",
@@ -164,10 +125,16 @@ def build_emergency_context(emergency: dict) -> str:
         "-" * 24,
         f"Food Kits: {emergency.get('food_kits', 0)}",
         f"Water Units: {emergency.get('water_units', 0)}",
-        f"Emergency Vehicles: {emergency.get('emergency_vehicles', 0)}",
+        (
+            "Emergency Vehicles: "
+            f"{emergency.get('emergency_vehicles', 0)}"
+        ),
         f"Volunteers: {emergency.get('volunteers', 0)}",
         f"Medical Teams: {emergency.get('medical_teams', 0)}",
-        f"Shelter Capacity: {emergency.get('shelter_capacity', 0)}",
+        (
+            "Shelter Capacity: "
+            f"{emergency.get('shelter_capacity', 0)}"
+        ),
         "",
         "ADDITIONAL INFORMATION",
         "-" * 28,
@@ -189,7 +156,22 @@ def build_emergency_context(emergency: dict) -> str:
         )
 
         for area in affected_areas:
+
             if isinstance(area, dict):
+
+                critical_conditions = area.get(
+                    "critical_conditions",
+                    [],
+                )
+
+                if not isinstance(
+                    critical_conditions,
+                    list,
+                ):
+                    critical_conditions = [
+                        str(critical_conditions)
+                    ]
+
                 lines.extend(
                     [
                         f"Area: {area.get('name', 'Unknown')}",
@@ -207,11 +189,12 @@ def build_emergency_context(emergency: dict) -> str:
                         ),
                         (
                             "Conditions: "
-                            f"{', '.join(area.get('critical_conditions', []))}"
+                            f"{', '.join(map(str, critical_conditions))}"
                         ),
                         "",
                     ]
                 )
+
             else:
                 lines.append(str(area))
 
@@ -234,10 +217,80 @@ def build_emergency_context(emergency: dict) -> str:
 
 
 # ============================================================
+# WORKFLOW EXECUTION
+# ============================================================
+
+def execute_pending_workflow():
+    """
+    Execute the real RESONA CrewAI workflow.
+    """
+
+    emergency = st.session_state.get(
+        "pending_emergency"
+    )
+
+    if not emergency:
+        return
+
+    st.session_state["workflow_running"] = True
+    st.session_state["last_error"] = None
+
+    try:
+
+        workflow = ResonaWorkflow()
+
+        emergency_id = emergency.get(
+            "emergency_id"
+        )
+
+        if not emergency_id:
+            emergency_id = (
+                "RES-"
+                + str(abs(hash(str(emergency))))[:10]
+            )
+
+        emergency_context = build_emergency_context(
+            emergency
+        )
+
+        result = workflow.run(
+            emergency_context=emergency_context,
+            emergency_id=emergency_id,
+        )
+
+        st.session_state["workflow_result"] = result
+
+        if result.get("success"):
+            st.session_state["last_error"] = None
+        else:
+            st.session_state["last_error"] = result.get(
+                "error",
+                "RESONA workflow failed.",
+            )
+
+    except Exception as exc:
+
+        st.session_state["workflow_result"] = {
+            "success": False,
+            "state": None,
+            "final_response": None,
+            "error": str(exc),
+        }
+
+        st.session_state["last_error"] = str(exc)
+
+    finally:
+
+        st.session_state["workflow_running"] = False
+        st.session_state["run_workflow"] = False
+
+
+# ============================================================
 # SIDEBAR NAVIGATION
 # ============================================================
 
 def render_sidebar():
+
     with st.sidebar:
 
         st.markdown(
@@ -269,7 +322,8 @@ def render_sidebar():
         for icon, page in pages:
 
             is_active = (
-                st.session_state["active_page"] == page
+                st.session_state["active_page"]
+                == page
             )
 
             button_label = f"{icon}  {page}"
@@ -278,8 +332,13 @@ def render_sidebar():
                 button_label,
                 key=f"nav_{page}",
                 use_container_width=True,
-                type="primary" if is_active else "secondary",
+                type=(
+                    "primary"
+                    if is_active
+                    else "secondary"
+                ),
             ):
+
                 st.session_state["active_page"] = page
                 st.rerun()
 
@@ -298,7 +357,9 @@ def render_sidebar():
             unsafe_allow_html=True,
         )
 
-        st.caption("Many Agents. One Coordinated Response.")
+        st.caption(
+            "Many Agents. One Coordinated Response."
+        )
 
 
 # ============================================================
@@ -312,7 +373,9 @@ def main():
     # --------------------------------------------------------
 
     if not st.session_state["launched"]:
+
         render_landing_page()
+
         return
 
     # --------------------------------------------------------
@@ -322,21 +385,27 @@ def main():
     render_sidebar()
 
     # --------------------------------------------------------
-    # Execute requested workflow
+    # Execute Requested Workflow
     # --------------------------------------------------------
 
     if (
         st.session_state.get("run_workflow")
         and st.session_state.get("pending_emergency")
-        and not st.session_state.get("workflow_running")
+        and not st.session_state.get(
+            "workflow_running"
+        )
     ):
 
         with st.spinner(
             "RESONA is coordinating its agent team..."
         ):
+
             execute_pending_workflow()
 
-        st.session_state["active_page"] = "Agent Workflow"
+        st.session_state["active_page"] = (
+            "Agent Workflow"
+        )
+
         st.rerun()
 
     # --------------------------------------------------------
@@ -346,7 +415,7 @@ def main():
     if st.session_state.get("last_error"):
 
         st.error(
-            f"RESONA workflow error: "
+            "RESONA workflow error: "
             f"{st.session_state['last_error']}"
         )
 
@@ -400,8 +469,9 @@ def main():
 
 
 # ============================================================
-# START APPLICATION
+# APPLICATION START
 # ============================================================
 
 if __name__ == "__main__":
     main()
+```
