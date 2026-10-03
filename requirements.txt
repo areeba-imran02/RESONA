@@ -1,0 +1,8 @@
+streamlit
+crewai
+groq
+pydantic
+pandas
+openpyxl
+pypdf
+requests
