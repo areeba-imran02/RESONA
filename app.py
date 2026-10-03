@@ -1,4 +1,16 @@
-"""
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "RESONA"))
+
+import streamlit as st
+
+from config.settings import (
+    APP_TITLE,
+    validate_configuration,
+)"""
 RESONA
 AI-Powered Emergency Response Intelligence Platform
 
