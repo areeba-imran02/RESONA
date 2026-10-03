@@ -1,8 +1,7 @@
 """
 RESONA - Crew Manager
 
-Creates and manages the seven specialized RESONA agents
-using CrewAI.
+Creates and manages the specialized CrewAI agents used by RESONA.
 """
 
 from crewai import Crew, Process
@@ -17,10 +16,7 @@ from agents.coordinator_agent import create_coordinator_agent
 
 
 class ResonaCrewManager:
-    """
-    Central manager responsible for creating the RESONA
-    multi-agent team.
-    """
+    """Central manager for the RESONA CrewAI agent team."""
 
     def __init__(self):
         self.situation_agent = create_situation_agent()
@@ -32,10 +28,6 @@ class ResonaCrewManager:
         self.coordinator_agent = create_coordinator_agent()
 
     def get_agents(self) -> list:
-        """
-        Return all RESONA agents in workflow order.
-        """
-
         return [
             self.situation_agent,
             self.needs_agent,
@@ -46,22 +38,41 @@ class ResonaCrewManager:
             self.coordinator_agent,
         ]
 
-    def create_crew(self, tasks: list) -> Crew:
-        """
-        Create a CrewAI crew using the supplied tasks.
+    def get_agent(self, agent_name: str):
+        """Return an agent by its RESONA workflow name."""
 
-        Tasks are supplied by the workflow layer so that
-        dynamic emergency data can be passed into the team.
-        """
+        mapping = {
+            "Situation Intelligence Agent": self.situation_agent,
+            "Needs Assessment Agent": self.needs_agent,
+            "Resource Intelligence Agent": self.resource_agent,
+            "Logistics & Deployment Agent": self.logistics_agent,
+            "Priority & Impact Agent": self.priority_agent,
+            "Critic & Conflict Resolution Agent": self.critic_agent,
+            "Response Coordinator Agent": self.coordinator_agent,
+        }
+
+        return mapping.get(agent_name)
+
+    def create_crew(self, agents: list, tasks: list) -> Crew:
+        """Create a CrewAI sequential crew."""
+
+        if not agents:
+            raise ValueError("At least one agent is required.")
 
         if not tasks:
-            raise ValueError(
-                "At least one task is required to create the RESONA crew."
-            )
+            raise ValueError("At least one task is required.")
 
         return Crew(
-            agents=self.get_agents(),
+            agents=agents,
             tasks=tasks,
             process=Process.sequential,
             verbose=False,
+        )
+
+    def create_single_agent_crew(self, agent, task) -> Crew:
+        """Create a one-agent crew for targeted re-evaluation."""
+
+        return self.create_crew(
+            agents=[agent],
+            tasks=[task],
         )
